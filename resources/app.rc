@@ -1,0 +1,12 @@
+#include <windows.h>
+#include "../src/resource.h"
+
+#pragma code_page(65001)
+
+IDR_MAIN_MENU MENU
+BEGIN
+    POPUP "Файл"
+    BEGIN
+        MENUITEM "Выход", IDM_FILE_EXIT
+    END
+END
