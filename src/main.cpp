@@ -1,7 +1,14 @@
 #include <windows.h>
 #include <shellapi.h>
+#include <tlhelp32.h>
+#include <winsvc.h>
+
+#include <string>
 
 #include "resource.h"
+#include "shared.h"
+
+bool SendStopServiceRequest();
 
 namespace {
 
@@ -18,6 +25,134 @@ HWND g_main_window = nullptr;
 UINT g_taskbar_created_message = 0;
 bool g_tray_icon_added = false;
 
+std::wstring GetExecutableDirectory() {
+    wchar_t path[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, path, MAX_PATH);
+
+    std::wstring module_path(path);
+    const size_t slash = module_path.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) {
+        return L".";
+    }
+    return module_path.substr(0, slash);
+}
+
+void PlayWindowOpenSound() {
+    const std::wstring sound_path = GetExecutableDirectory() + L"\\open.mp3";
+    if (GetFileAttributesW(sound_path.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        return;
+    }
+
+    mciSendStringW(L"close ziovpo_open_sound", nullptr, 0, nullptr);
+
+    const std::wstring open_command =
+        L"open \"" + sound_path + L"\" type mpegvideo alias ziovpo_open_sound";
+    if (mciSendStringW(open_command.c_str(), nullptr, 0, nullptr) != 0) {
+        return;
+    }
+
+    mciSendStringW(L"play ziovpo_open_sound from 0", nullptr, 0, nullptr);
+}
+
+DWORD GetParentProcessId() {
+    const DWORD current_pid = GetCurrentProcessId();
+    DWORD parent_pid = 0;
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    if (Process32FirstW(snapshot, &entry)) {
+        do {
+            if (entry.th32ProcessID == current_pid) {
+                parent_pid = entry.th32ParentProcessID;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+
+    CloseHandle(snapshot);
+    return parent_pid;
+}
+
+bool QueryServiceStatus(SC_HANDLE service, SERVICE_STATUS_PROCESS& status) {
+    DWORD bytes_needed = 0;
+    return QueryServiceStatusEx(
+        service,
+        SC_STATUS_PROCESS_INFO,
+        reinterpret_cast<LPBYTE>(&status),
+        sizeof(status),
+        &bytes_needed
+    ) != FALSE;
+}
+
+bool WaitForServiceRunning(SC_HANDLE service) {
+    SERVICE_STATUS_PROCESS status{};
+    for (int i = 0; i < 60; ++i) {
+        if (!QueryServiceStatus(service, status)) {
+            return false;
+        }
+        if (status.dwCurrentState == SERVICE_RUNNING) {
+            return true;
+        }
+        if (status.dwCurrentState == SERVICE_STOPPED) {
+            return false;
+        }
+        Sleep(500);
+    }
+    return false;
+}
+
+bool EnsureServiceContextOrStartAndExit() {
+    SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!manager) {
+        return false;
+    }
+
+    SC_HANDLE service = OpenServiceW(manager, kServiceName, SERVICE_QUERY_STATUS);
+    if (!service) {
+        CloseServiceHandle(manager);
+        return false;
+    }
+
+    SERVICE_STATUS_PROCESS status{};
+    if (!QueryServiceStatus(service, status)) {
+        CloseServiceHandle(service);
+        CloseServiceHandle(manager);
+        return false;
+    }
+
+    if (status.dwCurrentState == SERVICE_STOPPED) {
+        CloseServiceHandle(service);
+        service = OpenServiceW(manager, kServiceName, SERVICE_QUERY_STATUS | SERVICE_START);
+        if (service) {
+            StartServiceW(service, 0, nullptr);
+            WaitForServiceRunning(service);
+        }
+        CloseServiceHandle(service);
+        CloseServiceHandle(manager);
+        return false;
+    }
+
+    if (status.dwCurrentState != SERVICE_RUNNING) {
+        WaitForServiceRunning(service);
+        CloseServiceHandle(service);
+        CloseServiceHandle(manager);
+        return false;
+    }
+
+    const DWORD service_pid = status.dwProcessId;
+    const DWORD parent_pid = GetParentProcessId();
+
+    CloseServiceHandle(service);
+    CloseServiceHandle(manager);
+
+    return service_pid != 0 && parent_pid == service_pid;
+}
+
 void ShowMainWindow() {
     if (!g_main_window) {
         return;
@@ -25,6 +160,7 @@ void ShowMainWindow() {
 
     ShowWindow(g_main_window, SW_SHOWNORMAL);
     SetForegroundWindow(g_main_window);
+    PlayWindowOpenSound();
 }
 
 void RemoveTrayIcon() {
@@ -69,6 +205,7 @@ bool AddTrayIcon() {
 }
 
 void ExitApplication() {
+    SendStopServiceRequest();
     RemoveTrayIcon();
     DestroyWindow(g_main_window);
     PostQuitMessage(0);
@@ -229,6 +366,10 @@ HWND CreateMainWindow() {
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR command_line, int show_command) {
+    if (!EnsureServiceContextOrStartAndExit()) {
+        return 0;
+    }
+
     HANDLE single_instance_mutex = CreateMutex(nullptr, TRUE, kMutexName);
     if (!single_instance_mutex) {
         return 1;
@@ -258,6 +399,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR command_line, int show
     if (!IsBackgroundMode(command_line)) {
         ShowWindow(g_main_window, show_command);
         UpdateWindow(g_main_window);
+        PlayWindowOpenSound();
     }
 
     MSG message{};
