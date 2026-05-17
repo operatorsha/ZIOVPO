@@ -5,4 +5,16 @@
 interface ZIOVPOControl
 {
     void StopService();
+    long GetCurrentUser([out] long* authenticated,
+                        [out, string] wchar_t** login);
+    long Login([in, string] const wchar_t* login,
+               [in, string] const wchar_t* password,
+               [out, string] wchar_t** errorMessage);
+    long Logout();
+    long GetLicenseStatus([out] long* hasLicense,
+                          [out, string] wchar_t** expiresAt,
+                          [out, string] wchar_t** errorMessage);
+    long ActivateProduct([in, string] const wchar_t* activationCode,
+                         [out, string] wchar_t** errorMessage);
+    long AntivirusPing([out, string] wchar_t** errorMessage);
 }

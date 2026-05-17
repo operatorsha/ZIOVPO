@@ -52,17 +52,23 @@ add_executable(ZIOVPOService
     ${RPC_SERVER}
 )
 
+add_executable(ZIOVPOMockLicenseServer
+    src/mock_license_server.cpp
+)
+
 add_dependencies(ZIOVPOTrayApp GenerateRpc)
 add_dependencies(ZIOVPOService GenerateRpc)
 
 target_compile_features(ZIOVPOTrayApp PRIVATE cxx_std_17)
 target_compile_features(ZIOVPOService PRIVATE cxx_std_17)
+target_compile_features(ZIOVPOMockLicenseServer PRIVATE cxx_std_17)
 target_compile_definitions(ZIOVPOTrayApp PRIVATE UNICODE _UNICODE)
 target_compile_definitions(ZIOVPOService PRIVATE UNICODE _UNICODE)
 
 if(MSVC)
     target_compile_options(ZIOVPOTrayApp PRIVATE /utf-8)
     target_compile_options(ZIOVPOService PRIVATE /utf-8)
+    target_compile_options(ZIOVPOMockLicenseServer PRIVATE /utf-8)
 endif()
 
 target_include_directories(ZIOVPOTrayApp PRIVATE
@@ -88,5 +94,10 @@ target_link_libraries(ZIOVPOService PRIVATE
     advapi32
     rpcrt4
     userenv
+    winhttp
     wtsapi32
+)
+
+target_link_libraries(ZIOVPOMockLicenseServer PRIVATE
+    ws2_32
 )
