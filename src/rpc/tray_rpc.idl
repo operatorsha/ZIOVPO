@@ -1,0 +1,40 @@
+[
+    uuid(7f13c3c1-11f6-4a0f-9382-79a3fce55b45),
+    version(1.0)
+]
+interface ZIOVPOControl
+{
+    void StopService();
+    long GetCurrentUser([out] long* authenticated,
+                        [out, string] wchar_t** login);
+    long Login([in, string] const wchar_t* login,
+               [in, string] const wchar_t* password,
+               [out, string] wchar_t** errorMessage);
+    long Logout();
+    long GetLicenseStatus([out] long* hasLicense,
+                          [out, string] wchar_t** expiresAt,
+                          [out, string] wchar_t** errorMessage);
+    long ActivateProduct([in, string] const wchar_t* activationCode,
+                         [out, string] wchar_t** errorMessage);
+    long AntivirusPing([out, string] wchar_t** errorMessage);
+    long GetAvDatabaseInfo([out, string] wchar_t** releaseDate,
+                           [out] long* recordCount,
+                           [out, string] wchar_t** errorMessage);
+    long ScanFile([in, string] const wchar_t* path,
+                  [out, string] wchar_t** result,
+                  [out, string] wchar_t** errorMessage);
+    long ScanDirectory([in, string] const wchar_t* path,
+                       [out, string] wchar_t** result,
+                       [out, string] wchar_t** errorMessage);
+    long ScanFixedDrives([out, string] wchar_t** result,
+                         [out, string] wchar_t** errorMessage);
+    long ConfigureScheduleScan([in] long intervalMinutes,
+                               [in, string] const wchar_t* path,
+                               [out, string] wchar_t** errorMessage);
+    long GetScheduledScanResult([out, string] wchar_t** result,
+                                [out, string] wchar_t** errorMessage);
+    long ConfigureDirectoryMonitoring([in, string] const wchar_t* path,
+                                      [out, string] wchar_t** errorMessage);
+    long GetDirectoryMonitoringResult([out, string] wchar_t** result,
+                                      [out, string] wchar_t** errorMessage);
+}
