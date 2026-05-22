@@ -131,7 +131,7 @@ PSECURITY_DESCRIPTOR CreateProtectedProcessSecurityDescriptor() {
     constexpr wchar_t kProtectedProcessSddl[] =
         L"D:P"
         L"(A;;GA;;;SY)"
-        L"(A;;GRGX;;;BA)"
+        L"(A;;GR;;;BA)"
         L"(A;;GR;;;IU)"
         L"(A;;GR;;;BU)";
 
